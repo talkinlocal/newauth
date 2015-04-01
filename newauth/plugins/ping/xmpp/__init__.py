@@ -6,8 +6,7 @@ import sleekxmpp
 
 
 class XMPPPinger(Pinger):
-    """
-    Jabber pinger. Make sure to configure your offline messages settings if you don't want your server to explode.
+    """Jabber pinger. Make sure to configure your offline messages settings if you don't want your server to explode.
 
     You will need to install sleekxmpp and dnspython and modify your settings file.
 
@@ -20,29 +19,30 @@ class XMPPPinger(Pinger):
     immutable Whether users can disable or not xmpp pings.
     username  Username of user allowed to announce
     password  Password of user allowed to announce
+    immutable Whether this plugin can be disabled or not
     ========= =============================================
 
-    Example:
+    Example::
 
-    ```
-    PINGERS_SETTINGS = {
-        'newauth.XMPPPinger': {
-            'host': 'example.com',
-            'user': 'admin',
-            'password': 'admin',
-            'user_id_key': 'user_id'
+        PINGERS_SETTINGS = {
+            'newauth.XMPPPinger': {
+                'host': 'example.com',
+                'user': 'admin',
+                'password': 'admin',
+                'immutable': True
+            }
         }
-    }
-    ```
     """
 
     name = "newauth.XMPPPinger"
 
     display_name = "Jabber"
 
-    def __init__(self, ping=None):
-        self.ping = ping
-        self.config = current_app.config['PINGERS_SETTINGS']['newauth.XMPPPinger']
+    def __init__(self, app=None):
+        super(XMPPPinger, self).__init__(app)
+
+    def init_app(self, app):
+        self.config = app.config['PINGERS_SETTINGS']['newauth.XMPPPinger']
         self.immutable = self.config.get('immutable', False)
 
     @property
@@ -53,14 +53,17 @@ class XMPPPinger(Pinger):
 * JabberID: {current_user.user_id}@{config[host]}
 """.format(config=self.config, current_user=current_user)
 
-    def send_ping(self):
+    def send_ping(self, ping):
 
         def do_ping(ping, config, users):
             self.AnnounceBot(config['user'] + '@' + config['host'] + '/auth', config['password'], config, ping, users)
 
         executor = futures.ThreadPoolExecutor(max_workers=1)
-        executor.submit(do_ping, self.ping, self.config, self.ping.users.all())
+        executor.submit(do_ping, ping, self.config, ping.users.all())
         executor.shutdown(wait=True)
+
+    def get_form(self, user_config):
+        return None
 
     def enabled(self, user):
         return True
@@ -79,5 +82,5 @@ class XMPPPinger(Pinger):
 
         def send_ping(self, event):
             for user in self.users:
-                self.send_message(mto=getattr(user, self.config['user_id_key']) + '@' + self.config['host'], mbody=self.ping.text, mtype='chat')
+                self.send_message(mto=user.user_id + '@' + self.config['host'], mbody=self.ping.text, mtype='chat')
             self.disconnect(wait=True)

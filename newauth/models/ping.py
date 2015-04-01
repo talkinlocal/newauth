@@ -1,3 +1,4 @@
+import json
 from newauth.models import db
 
 
@@ -49,8 +50,17 @@ class Ping(db.Model):
 class PingerConfiguration(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     pinger = db.Column(db.String, nullable=False)
-    configuration = db.Column(db.Text, default=lambda: dict())
+    configuration = db.Column(db.Text, default="{}")
     enabled = db.Column(db.Boolean, default=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
     user = db.relationship('User', backref=db.backref('pingers_configuration', lazy='dynamic'), foreign_keys=[user_id])
+
+    def get_config(self):
+        try:
+            return json.loads(self.configuration)
+        except Exception:
+            return {}
+
+    def set_config(self, config):
+        self.configuration= json.dumps(config)

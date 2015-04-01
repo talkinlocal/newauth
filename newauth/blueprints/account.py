@@ -1,10 +1,14 @@
 import datetime
+import hashlib
 from flask import render_template, redirect, url_for, flash, current_app, request, session
-from flask.ext.login import current_user, login_user, login_required
 from flask.ext.classy import FlaskView, route
+from flask.ext.login import current_user, login_user, login_required
+from flask.ext.mail import Message
+from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
+from newauth.app import mail
 from newauth.eveapi import AuthenticationException
-from newauth.forms import LoginForm, AccountUpdateForm, APIKeyForm
-from newauth.models import db, User, APIKey
+from newauth.forms import LoginForm, AccountUpdateForm, APIKeyForm, AccountRecoverForm, AccountDoRecoveryForm
+from newauth.models import db, User, APIKey, redis
 from newauth.models.enums import CharacterStatus
 from newauth.utils import flash_errors
 
@@ -170,7 +174,7 @@ class AccountView(FlaskView):
                     flash('You were able to login but we could not find a valid main character. Please update your account.', 'warning')
                     return redirect(url_for('AccountView:profile'))
                 flash('Welcome back {}!'.format(user.main_character.name))
-                return redirect(url_for('AccountView:index'))
+                return form.redirect('AccountView:index')
             else:
                 if not user.active:
                     flash('Your account is inactive.', 'danger')
@@ -180,6 +184,71 @@ class AccountView(FlaskView):
         return render_template('account/login.html', form=form)
 
     def logout(self):
+        current_ip = session.get('ip')
         session.clear()
+        session['ip'] = current_ip
         flash('You have been logged out.', 'info')
         return redirect(url_for('AccountView:login'))
+
+    @route('recover', methods=['GET', 'POST'])
+    def recover(self):
+        form = AccountRecoverForm()
+        if form.validate_on_submit():
+            user = User.query.filter((User.user_id == form.user_id.data) | (User.email == form.email.data)).first()
+            if not user:
+                flash('We could not find this user in our database.', 'warning')
+                return redirect(url_for('AccountView:recover'))
+            serializer = URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
+            recover_key = serializer.dumps({'recover': True, 'user_id': user.user_id})
+            at_index = user.email.rfind('@')
+            obfuscated_email = user.email[0:3] + ('*' * (at_index - 3)) + user.email[at_index:]
+            message = Message(
+                subject='Account recovery on {} auth'.format(current_app.config['EVE']['auth_name']),
+                recipients=[user.email],
+                html=render_template('emails/account_recover.html', recovery_link=url_for('AccountView:do_recovery', recover_key=recover_key, _external=True), auth_name=current_app.config['EVE']['auth_name'])
+            )
+            try:
+                mail.send(message)
+            except Exception as e:
+                current_app.logger.exception(e)
+                flash('NewAuth was not able to send an email out. Please contact an administrator.', 'danger')
+            else:
+                flash('We have sent an email to {} with instructions to recover your account.'.format(obfuscated_email), 'success')
+            return redirect(url_for('AccountView:login'))
+        return render_template('account/recover.html', form=form)
+
+    @route('recover/<recover_key>', methods=['GET', 'POST'])
+    def do_recovery(self, recover_key):
+        serializer = URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
+        md5_encoder = hashlib.md5()
+        md5_encoder.update(recover_key)
+        recover_key_md5 = md5_encoder.hexdigest()
+        if redis.get('recovery:{}'.format(recover_key_md5)):
+            flash('This recovery key has already been used.', 'danger')
+            return redirect(url_for('AccountView:login'))
+        try:
+            recovery_data = serializer.loads(recover_key, 60 * 60 * 24)
+        except SignatureExpired:
+            flash('This recovery key has expired, please start the recovery process again.', 'danger')
+            return redirect(url_for('AccountView:login'))
+        except BadSignature:
+            flash('Invalid recovery key.', 'danger')
+            return redirect(url_for('AccountView:login'))
+        if not recovery_data.get('recover', False):
+            flash('Invalid payload.', 'danger')
+            return redirect(url_for('AccountView:login'))
+        user = User.query.filter_by(user_id=recovery_data['user_id']).first()
+        if not user:
+            flash('User not found for recovery.', 'danger')
+            return redirect(url_for('AccountView:login'))
+        form = AccountDoRecoveryForm()
+        if form.validate_on_submit():
+            user.update_password(form.password.data)
+            db.session.add(user)
+            db.session.commit()
+            User.password_updated.send(current_app._get_current_object(), model=user, password=form.password.data)
+            redis.set('recovery:{}'.format(recover_key_md5), True)
+            redis.expire('recovery:{}'.format(recover_key_md5), 60 * 60 * 24)
+            flash('Account password changed.', 'success')
+            return redirect(url_for('AccountView:login'))
+        return render_template('account/do_recovery.html', user=user, recover_key=recover_key, form=form)

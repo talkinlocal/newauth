@@ -1,10 +1,14 @@
 import os
 from blinker import Namespace
-from flask import Flask, redirect, url_for, session, request, flash
+from flask import Flask, redirect, url_for, session, request, flash, current_app
+from flask.ext.login import login_url
+from flask.ext.mail import Mail
 from flask_wtf import CsrfProtect
 from werkzeug.utils import import_string
 
 newauth_signals = Namespace()
+mail = Mail()
+
 
 def create_app():
     app = Flask(__name__, static_folder='public')
@@ -16,15 +20,18 @@ def create_app():
 
     app.config.from_object('newauth.settings.{}Config'.format(app.environment))
 
-    from newauth.models import db, migrate, Message, redis, login_manager
-    from newauth.models.enums import CharacterStatus, GroupType, APIKeyStatus
+    from newauth.models import db, migrate, Message, redis, login_manager, celery
+    from newauth.models.enums import CharacterStatus, GroupType, APIKeyStatus, AuthContactType
     db.init_app(app)
     migrate.init_app(app, db)
     redis.init_app(app)
     login_manager.init_app(app)
+    mail.init_app(app)
+    celery.init_app(app)
 
     # Initialize NewAuth plugins
     app.loaded_plugins = {}
+    app.loaded_pingers = {}
     app.admin_user_hooks = []
     app.dashboard_hooks = []
     app.navbar = {'admin': [], 'extra': []}
@@ -34,12 +41,18 @@ def create_app():
         imported_plugin.init_app(app)
         app.loaded_plugins[plugin] = imported_plugin
 
-    from newauth.blueprints import AccountView, RegisterView, GroupsView, PingsView, AdminView
+    for pinger in app.config['PINGERS']:
+        imported_pinger = import_string(pinger)()
+        imported_pinger.init_app(app)
+        app.loaded_pingers[pinger] = imported_pinger
+
+    from newauth.blueprints import AccountView, RegisterView, GroupsView, PingsView, AdminView, ExtraView
     AccountView.register(app)
     RegisterView.register(app)
     GroupsView.register(app)
     PingsView.register(app)
     AdminView.register(app)
+    ExtraView.register(app)
 
     from newauth.assets import assets_env
     assets_env.init_app(app)
@@ -63,6 +76,7 @@ def create_app():
             'CharacterStatus': CharacterStatus,
             'GroupType': GroupType,
             'APIKeyStatus': APIKeyStatus,
+            'AuthContactType': AuthContactType,
             'hooks': {
                 'admin_user_hooks': app.admin_user_hooks,
                 'dashboard_hooks': app.dashboard_hooks
@@ -76,9 +90,6 @@ def create_app():
             session.clear()
             session['ip'] = request.remote_addr
             flash('Session expired, please login.')
-            return redirect(url_for('AccountView:login'))
-
-
-
+            return redirect(login_url('AccountView:login', next_url=request.url))
 
     return app

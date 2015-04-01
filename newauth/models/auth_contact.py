@@ -26,6 +26,9 @@ class AuthContact(db.Model):
     added_on = db.Column(db.DateTime, default=db.func.now())
     updated_on = db.Column(db.DateTime, default=db.func.now())
 
+    def get_type(self):
+        return AuthContactType(self.type)
+
     @classmethod
     def get_or_create(cls, **kwargs):
         contact = AuthContact.query.filter_by(id=kwargs['id']).first()
@@ -105,6 +108,7 @@ class AuthContact(db.Model):
                             id=sheet.corporationID,
                             name=sheet.corporationName,
                             short_name=sheet.ticker,
+                            internal=False,
                             type=AuthContactType.corporation.value,
                             standing=contact.standing,
                             members=sheet.memberCount,
@@ -125,6 +129,7 @@ class AuthContact(db.Model):
                             id=alliance.allianceID,
                             name=alliance.name,
                             short_name=alliance.shortName,
+                            internal=False,
                             type=AuthContactType.alliance.value,
                             standing=contact.standing,
                             members=alliance.memberCount,

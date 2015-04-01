@@ -1,0 +1,135 @@
+{% extends "_layouts/base.html" %}
+
+{% import 'macros.html' as macros %}
+
+{% block title %}Standings | {{ config.EVE.auth_name }}{% endblock %}
+
+{% block content %}
+<div class="standings row">
+    <div class="col-md-12">
+        <h1><i class="fa fa-fw fa-book"></i> Standings
+            {% if current_user.is_admin() %}<button class="btn btn-primary pull-right js-update-standings"><i class="fa fa-fw fa-refresh"></i> Refresh</button>{% endif %}</h1>
+        <hr/>
+    </div>
+    <div class="col-md-3">
+        <div class="panel panel-danger">
+            <div class="panel-heading">
+                <h3 class="panel-title">Standing -10</h3>
+            </div>
+            <ul class="list-group">
+                <li class="list-group-item disabled"><strong>Alliances</strong></li>
+                {% for contact in contacts['-10']['alliances']|sort(attribute='name') %}
+                        <li class="list-group-item">
+                            <img src="https://image.eveonline.com/Alliance/{{ contact.id }}_32.png" class="img-circle" style="margin-right: 5px"/>
+                            {{ contact.name }}
+                        </li>
+                {% else %}
+                    <li class="list-group-item"><span class="text-muted">No alliances</span></li>
+                {% endfor %}
+                <li class="list-group-item disabled"><strong>Corporations</strong></li>
+                {% for contact in contacts['-10']['corporations']|sort(attribute='name') %}
+                        <li class="list-group-item">
+                            <img src="https://image.eveonline.com/Corporation/{{ contact.id }}_32.png" class="img-circle" style="margin-right: 5px"/>
+                            {{ contact.name }}
+                        </li>
+                {% else %}
+                    <li class="list-group-item"><span class="text-muted">No corporations</span></li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="panel panel-warning">
+            <div class="panel-heading">
+                <h3 class="panel-title">Standing -5</h3>
+            </div>
+            <ul class="list-group">
+                <li class="list-group-item disabled"><strong>Alliances</strong></li>
+                {% for contact in contacts['-5']['alliances']|sort(attribute='name') %}
+                        <li class="list-group-item">
+                            <img src="https://image.eveonline.com/Alliance/{{ contact.id }}_32.png" class="img-circle" style="margin-right: 5px"/>
+                            {{ contact.name }}
+                        </li>
+                {% else %}
+                    <li class="list-group-item"><span class="text-muted">No alliances</span></li>
+                {% endfor %}
+                <li class="list-group-item disabled"><strong>Corporations</strong></li>
+                {% for contact in contacts['-5']['corporations']|sort(attribute='name') %}
+                        <li class="list-group-item">
+                            <img src="https://image.eveonline.com/Corporation/{{ contact.id }}_32.png" class="img-circle" style="margin-right: 5px"/>
+                            {{ contact.name }}
+                        </li>
+                {% else %}
+                    <li class="list-group-item"><span class="text-muted">No corporations</span></li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="panel panel-info">
+            <div class="panel-heading">
+                <h3 class="panel-title">Standing +5</h3>
+            </div>
+            <ul class="list-group">
+                <li class="list-group-item disabled"><strong>Alliances</strong></li>
+                {% for contact in contacts['5']['alliances']|sort(attribute='name') %}
+                        <li class="list-group-item">
+                            <img src="https://image.eveonline.com/Alliance/{{ contact.id }}_32.png" class="img-circle" style="margin-right: 5px"/>
+                            {{ contact.name }}
+                        </li>
+                {% else %}
+                    <li class="list-group-item"><span class="text-muted">No alliances</span></li>
+                {% endfor %}
+                <li class="list-group-item disabled"><strong>Corporations</strong></li>
+                {% for contact in contacts['5']['corporations']|sort(attribute='name') %}
+                        <li class="list-group-item">
+                            <img src="https://image.eveonline.com/Corporation/{{ contact.id }}_32.png" class="img-circle" style="margin-right: 5px"/>
+                            {{ contact.name }}
+                        </li>
+                {% else %}
+                    <li class="list-group-item"><span class="text-muted">No corporations</span></li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="panel panel-success">
+            <div class="panel-heading">
+                <h3 class="panel-title">Standing +10</h3>
+            </div>
+            <ul class="list-group">
+                <li class="list-group-item disabled"><strong>Alliances</strong></li>
+                {% for contact in contacts['10']['alliances']|sort(attribute='name') %}
+                        <li class="list-group-item">
+                            <img src="https://image.eveonline.com/Alliance/{{ contact.id }}_32.png" class="img-circle" style="margin-right: 5px"/>
+                            {{ contact.name }}
+                        </li>
+                {% else %}
+                    <li class="list-group-item"><span class="text-muted">No alliances</span></li>
+                {% endfor %}
+                <li class="list-group-item disabled"><strong>Corporations</strong></li>
+                {% for contact in contacts['10']['corporations']|sort(attribute='name') %}
+                        <li class="list-group-item">
+                            <img src="https://image.eveonline.com/Corporation/{{ contact.id }}_32.png" class="img-circle" style="margin-right: 5px"/>
+                            {{ contact.name }}
+                        </li>
+                {% else %}
+                    <li class="list-group-item"><span class="text-muted">No corporations</span></li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% if current_user.is_admin() %}
+    <script>
+        $('.js-update-standings').on('click', function(e) {
+            $.ajax({
+                url: '{{ url_for('ExtraView:standings') }}',
+                type: 'POST'
+            }).always(function() {
+                window.location.href = '{{ url_for('ExtraView:standings', updated=True) }}'
+            })
+        })
+    </script>
+{% endif %}
+{% endblock %}

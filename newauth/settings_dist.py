@@ -1,5 +1,6 @@
 import datetime
 import os
+from celery.schedules import crontab
 
 
 class BaseConfig(object):
@@ -48,8 +49,46 @@ class BaseConfig(object):
     #: Runtime configuration for pingers
     PINGERS_SETTINGS = {}
 
-    #: Settings
+    #: Plugins list
     PLUGINS = []
+
+    #: Mail settings for https://pythonhosted.org/flask-mail/
+    MAIL_SERVER = 'localhost'
+    MAIL_PORT = 25
+    MAIL_USE_TLS = False
+    MAIL_USE_SSL = False
+    MAIL_DEBUG = os.getenv('DEBUG', False)
+    MAIL_USERNAME = None
+    MAIL_PASSWORD = None
+    MAIL_DEFAULT_SENDER = None
+
+    #: Celery Settings, more available http://celery.readthedocs.org/en/latest/configuration.html
+    CELERY_BROKER_URL = 'redis://localhost:6379'
+    CELERY_RESULT_BACKEND = 'db+sqlite:///celery.sqlite'
+    CELERY_ACCEPT_CONTENT = ['json']
+    CELERY_TASK_SERIALIZER = 'json'
+    CELERYBEAT_SCHEDULE = {
+        'update_users': {
+            'task': 'newauth.tasks.update_users',
+            'schedule': crontab(minute=0, hour=13),
+        },
+        'update_contacts': {
+            'task': 'newauth.tasks.update_contacts',
+            'schedule': crontab(minute=0, hour='*/2')
+        }
+    }
+
+    #: HTTP scheme (can be http, https, etc...)
+    HTTP_SCHEME = 'http'
+
+    #: Serve name used to generate external urls
+    #: See "More on SERVER_NAME" http://flask.pocoo.org/docs/0.10/config/#builtin-configuration-values
+    SERVER_NAME = 'newauth.local:5002'
+
+    #: Better SQL pool settings
+    SQLALCHEMY_POOL_SIZE = 10
+    SQLALCHEMY_POOL_TIMEOUT = 60
+    SQLALCHEMY_MAX_OVERFLOW = 10
 
 
 class DevConfig(BaseConfig):

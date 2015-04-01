@@ -101,6 +101,7 @@ class EveAPIQuery(object):
         self.base = base
         self.api_key = None
         self.session = requests.Session()
+        self.session.headers['User-Agent'] = 'NewAuth instance for {}'.format(current_app.config['EVE']['auth_name'])
         if public:
             self.public = True
         if api_key and isinstance(api_key, APIKey):
@@ -142,7 +143,7 @@ class EveAPIQuery(object):
             req = self.session.get(self.base + call + '.xml.aspx', params=kwargs)
             req.raise_for_status()
         except requests.exceptions.RequestException as e:
-            if req and req.status_code == requests.codes['forbidden']:
+            if req.status_code == 403:
                 raise AuthenticationException(self.key_id)
             raise e
         if req.status_code != 200:

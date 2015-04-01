@@ -36,15 +36,15 @@ class APIKey(db.Model):
     def update_api_key(self):
         try:
             api_info = self.get_api().get('account/APIKeyInfo')
-        except Exception as e:
-            current_app.logger.exception(e)
-            raise e
-        self.mask = api_info.accessMask
-        if api_info.expires:
-            self.expires_on = api_info.expires
+        except AuthenticationException:
+            self.set_status(APIKeyStatus.invalid)
         else:
-            self.expires_on = None
-        self.set_type(APIKeyType(api_info.type))
+            self.mask = api_info.accessMask
+            if api_info.expires:
+                self.expires_on = datetime.datetime.strptime(api_info.expires, '%Y-%m-%d %H:%M:%S')
+            else:
+                self.expires_on = None
+            self.set_type(APIKeyType(api_info.type))
 
     def set_type(self, type):
         self.type = type.value
@@ -87,7 +87,10 @@ class APIKey(db.Model):
             mask_name = None
             for name, requirement in current_app.config['EVE']['requirements'].iteritems():
                 if self.mask >= requirement['mask']:
-                    mask_name = name
+                    if mask_name and requirement['mask'] > current_app.config['EVE']['requirements'][mask_name]['mask']:
+                        mask_name = name
+                    elif not mask_name:
+                        mask_name = name
             if not mask_name:
                 self.set_status(APIKeyStatus.invalid_mask)
             else:

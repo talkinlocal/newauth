@@ -1,3 +1,4 @@
+import time
 import logging
 import sys
 from ldap3 import SEARCH_SCOPE_WHOLE_SUBTREE
@@ -9,8 +10,11 @@ from newauth.app import create_app
 from newauth.models import db, AuthContact, User, Group, GroupMembership, APIKey
 from newauth.models.enums import GroupType
 from newauth.plugins.sync.ldap import LDAPUser
+from newauth.tasks import update_user
 
 app = create_app()
+
+from newauth.models import celery
 
 manager = Manager(app)
 manager.add_command('assets', ManageAssets)
@@ -55,6 +59,17 @@ def make_ping(user):
         g.members.append(membership)
         db.session.add(g)
         db.session.commit()
+
+
+@manager.command
+def update_users(user_id=None):
+    with app.app_context():
+        if user_id:
+            update_user.delay(user_id)
+        else:
+            user_ids = [a[0] for a in db.session.query(User.user_id).all()]
+            for user_id in user_ids:
+                update_user.apply_async(args=[user_id], queue='newauth')
 
 
 if __name__ == '__main__':
